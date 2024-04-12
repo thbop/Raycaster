@@ -62,15 +62,24 @@ static float cast_ray( vec2 L0, vec2 L1, int sx ) { // Create some kind of line 
     float rdirlen = Q_rsqrt( dir.x*dir.x + dir.y*dir.y );
     dir.x *= rdirlen; dir.y *= rdirlen; // Divide by length
 
+    // Line intersection tests
     vec2 linearrow = { L1.x - L0.x, L1.y - L0.y };
     vec2 linetocamera = { L0.x - player.pos.x, L0.y - player.pos.y };
     float s = (dir.x * linearrow.y) - (linearrow.x * dir.y);
     if ( s == 0.0f ) return -1.0f; // Lines are parallel
 
     float t = ( (linearrow.x * linetocamera.y) - (linetocamera.x * linearrow.y) ) / s;
-    if ( t < 0.0f ) return -1.0f;
+    if ( t < 0.0f ) return -1.0f; // Intersection occurred behind camera
     return t;
 }
+
+static void vline( int x, int halfheight, u32 color ) {
+    for ( int j = 0; j < halfheight; j++ ) {
+        state.pixels[ ((SCREEN_HALF_HEIGHT+j) * SCREEN_WIDTH) + x ] = color;
+        state.pixels[ ((SCREEN_HALF_HEIGHT-j) * SCREEN_WIDTH) + x ] = color;
+    }
+}
+
 
 int main(int argc, char** argv) {
     // Initialize SDL
@@ -99,6 +108,13 @@ int main(int argc, char** argv) {
 
     SDL_Event event;
     state.running = true;
+
+    player.pos = (vec2){ 0.0f, 0.0f };
+
+    vec2
+        L0 = { -100, -64 },
+        L1 = {  100, -64 };
+
     while (state.running) {
         // Process events
         while (SDL_PollEvent(&event)) {
@@ -111,6 +127,13 @@ int main(int argc, char** argv) {
 
         memset(state.pixels, 0, sizeof(state.pixels)); // Clear screen
 
+        for ( int i = 0; i < SCREEN_WIDTH; i++ ) {
+            float dis = cast_ray( L0, L1, i );
+            if ( dis != -1.0f ) {
+                vline( i, SCREEN_HALF_HEIGHT - 0.001f*dis*dis, 0xFF0000FF );
+            }
+        }
+        player.pos.y += 1;
 
         SDL_UpdateTexture(state.texture, NULL, state.pixels, SCREEN_WIDTH * 4); // 4 = sizeof(u32)
         SDL_RenderCopyEx(
