@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <time.h>
-#include <string.h>
 
 #include <SDL2/SDL.h>
 // Normally SDL2 will redefine the main entry point of the program for Windows applications
@@ -11,7 +9,6 @@
     #undef main
 #endif
 
-// Utility macros
 #define CHECK_ERROR(test, message) \
     do { \
         if((test)) { \
@@ -20,62 +17,74 @@
         } \
     } while(0)
 
-// Get a random number from 0 to 255
-int randInt(int rmin, int rmax) {
-    return rand() % rmax + rmin;
-}
-    
-// Window dimensions
-static const int width = 800;
-static const int height = 600;
+#define SCREEN_WIDTH 384
+#define SCREEN_HEIGHT 216
 
-int main(int argc, char **argv) {
-    // Initialize the random number generator
-    srand(time(NULL));
-    
+typedef unsigned int u32;
+
+typedef struct vec2 { float x, y; } vec2;
+
+struct {
+    SDL_Window* window;
+    SDL_Texture* texture;
+    SDL_Renderer *renderer;
+    u32 pixels[SCREEN_WIDTH * SCREEN_HEIGHT];
+    bool running;
+} state;
+
+
+int main(int argc, char** argv) {
     // Initialize SDL
     CHECK_ERROR(SDL_Init(SDL_INIT_VIDEO) != 0, SDL_GetError());
 
     // Create an SDL window
-    SDL_Window *window = SDL_CreateWindow("Hello, SDL2", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, SDL_WINDOW_OPENGL);
-    CHECK_ERROR(window == NULL, SDL_GetError());
+    state.window = SDL_CreateWindow(
+        "Raycaster",
+        SDL_WINDOWPOS_CENTERED_DISPLAY(0),
+        SDL_WINDOWPOS_CENTERED_DISPLAY(0),
+        1280, 720, SDL_WINDOW_ALLOW_HIGHDPI
+    );
+    CHECK_ERROR(state.window == NULL, SDL_GetError());
 
-    // Create a renderer (accelerated and in sync with the display refresh rate)
-    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);    
-    CHECK_ERROR(renderer == NULL, SDL_GetError());
+    state.renderer = SDL_CreateRenderer(state.window, -1, SDL_RENDERER_PRESENTVSYNC);    
+    CHECK_ERROR(state.renderer == NULL, SDL_GetError());
 
-    // Initial renderer color
-    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+    // Create a render texture
+    state.texture = SDL_CreateTexture(
+        state.renderer,
+        SDL_PIXELFORMAT_RGBA8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        SCREEN_WIDTH, SCREEN_HEIGHT
+    );
+    CHECK_ERROR(state.texture == NULL, SDL_GetError());
 
-    bool running = true;
     SDL_Event event;
-    while(running) {
+    state.running = true;
+    while (state.running) {
         // Process events
-        while(SDL_PollEvent(&event)) {
-            if(event.type == SDL_QUIT) {
-                running = false;
-            } else if(event.type == SDL_KEYDOWN) {
-                const char *key = SDL_GetKeyName(event.key.keysym.sym);
-                if(strcmp(key, "C") == 0) {
-                    SDL_SetRenderDrawColor(renderer, randInt(0, 255), randInt(0, 255), randInt(0, 255), 255);
-                } else if(strcmp(key, "Q") == 0) {
-                    running = false;
-                }                    
+        while (SDL_PollEvent(&event)) {
+            switch (event.type) {
+                case SDL_QUIT:
+                    state.running = false;
+                    break;
             }
         }
 
-        // Clear screen
-        SDL_RenderClear(renderer);
+        memset(state.pixels, 0, sizeof(state.pixels)); // Clear screen
 
-        // Draw
 
-        // Show what was drawn
-        SDL_RenderPresent(renderer);
+        SDL_UpdateTexture(state.texture, NULL, state.pixels, SCREEN_WIDTH * 4); // 4 = sizeof(u32)
+        SDL_RenderCopyEx(
+            state.renderer, state.texture,
+            NULL, NULL, 0.0, NULL, 0
+        );
+        SDL_RenderPresent(state.renderer);
     }
 
     // Release resources
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
+    SDL_DestroyTexture(state.texture);
+    SDL_DestroyRenderer(state.renderer);
+    SDL_DestroyWindow(state.window);
     SDL_Quit();
 
     return 0;
