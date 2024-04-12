@@ -19,6 +19,10 @@
 
 #define SCREEN_WIDTH 384
 #define SCREEN_HEIGHT 216
+#define SCREEN_HALF_WIDTH 192
+#define SCREEN_HALF_HEIGHT 108
+
+#define VIEWPLANE_DISTANCE 64
 
 typedef unsigned int u32;
 
@@ -32,6 +36,41 @@ struct {
     bool running;
 } state;
 
+struct {
+    vec2 pos;
+    float rot;
+} player;
+
+static float Q_rsqrt( float number ) {
+    // Don't ask, watch this: https://youtu.be/p8u_k2LIZyo?si=n8mRBL3u3PjkUHsR
+    long i;
+    float x2, y;
+    
+    x2 = number * 0.5f;
+    y = number;
+    i = *( long* ) &y;
+    i = 0x5F3759DF - ( i >> 1 );
+    y = *(float*) &i;
+    y *= ( 1.5f - ( x2 * y*y ) );
+
+    return y;
+}
+
+static float cast_ray( vec2 L0, vec2 L1, int sx ) { // Create some kind of line stepper to go through all the line points
+    // Generates a direction from camera origin to view plane
+    vec2 dir = { -SCREEN_HALF_WIDTH + sx, VIEWPLANE_DISTANCE };
+    float rdirlen = Q_rsqrt( dir.x*dir.x + dir.y*dir.y );
+    dir.x *= rdirlen; dir.y *= rdirlen; // Divide by length
+
+    vec2 linearrow = { L1.x - L0.x, L1.y - L0.y };
+    vec2 linetocamera = { L0.x - player.pos.x, L0.y - player.pos.y };
+    float s = (dir.x * linearrow.y) - (linearrow.x * dir.y);
+    if ( s == 0.0f ) return -1.0f; // Lines are parallel
+
+    float t = ( (linearrow.x * linetocamera.y) - (linetocamera.x * linearrow.y) ) / s;
+    if ( t < 0.0f ) return -1.0f;
+    return t;
+}
 
 int main(int argc, char** argv) {
     // Initialize SDL
