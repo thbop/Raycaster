@@ -122,9 +122,17 @@ int main(int argc, char** argv) {
 
     player.pos = (vec2){ 0.0f, 0.0f };
 
-    vec2
-        L0 = { -100, 64 },
-        L1 = {  100, 64 };
+    vec2 world[] = {
+        { 0.0f, 128.0f },
+        { 0.0f, 64.0f },
+        { -64.0f, 32.0f },
+    };
+    int worldSize = 3;
+
+    long colors[] = {
+        0xFF0000FF,
+        0x00FF00FF
+    };
 
     while (state.running) {
         // Process events
@@ -150,9 +158,14 @@ int main(int argc, char** argv) {
         memset(state.pixels, 0, sizeof(state.pixels)); // Clear screen
 
         for ( int i = 0; i < SCREEN_WIDTH; i++ ) {
-            float dis = cast_ray( L0, L1, i );
-            if ( dis != -1.0f ) {
-                vline( i, SCREEN_HALF_HEIGHT - dis, 0xFF0000FF );
+            for ( int l = 0; l < worldSize; l++ ) {
+                float dis = -1.0f;
+                if ( l+1 <= worldSize ) {
+                    dis = cast_ray( world[l], world[l+1], i );
+                }
+                if ( dis != -1.0f ) {
+                    vline( i, SCREEN_HALF_HEIGHT - dis, colors[l] );
+                }
             }
         }
 
