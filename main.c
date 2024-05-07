@@ -25,8 +25,13 @@
 #define VIEWPLANE_DISTANCE 64
 
 typedef unsigned int u32;
+typedef unsigned char u8;
 
 typedef struct vec2 { float x, y; } vec2;
+
+float cross2( vec2 p, vec2 q ) {
+    return p.x * q.y - p.y * q.x;
+}
 
 struct {
     SDL_Window* window;
@@ -56,20 +61,26 @@ static float Q_rsqrt( float number ) {
     return y;
 }
 
+
 static float cast_ray( vec2 L0, vec2 L1, int sx ) { // Create some kind of line stepper to go through all the line points
     // Generates a direction from camera origin to view plane
-    vec2 dir = { -SCREEN_HALF_WIDTH + sx, VIEWPLANE_DISTANCE };
+    vec2 dir = { -(SCREEN_HALF_WIDTH >> 4) + (sx >> 4), VIEWPLANE_DISTANCE };
     float rdirlen = Q_rsqrt( dir.x*dir.x + dir.y*dir.y );
     dir.x *= rdirlen; dir.y *= rdirlen; // Divide by length
 
     // Line intersection tests
-    vec2 linearrow = { L1.x - L0.x, L1.y - L0.y };
-    vec2 linetocamera = { L0.x - player.pos.x, L0.y - player.pos.y };
-    float s = (dir.x * linearrow.y) - (linearrow.x * dir.y);
-    if ( s == 0.0f ) return -1.0f; // Lines are parallel
+    vec2 s  = { L0.x - L1.x, L0.y - L1.y };
+    vec2 qmp = { L0.x - player.pos.x, L0.y - player.pos.y }; // q - s
+    float rxs = cross2( dir, s ); // r x s
 
-    float t = ( (linearrow.x * linetocamera.y) - (linetocamera.x * linearrow.y) ) / s;
-    if ( t < 0.0f ) return -1.0f; // Intersection occurred behind camera
+    if ( !rxs ) return -1.0f;
+
+    float t = cross2( qmp, (vec2){ s.x / rxs, s.y / rxs } );
+    float u = cross2( qmp, (vec2){ dir.x / rxs, dir.y / rxs } ); // u will be helpful for uvs
+    // printf( "%f %f\n", t, u );
+    if ( t <= 0.0f || u < 0.0f || u > 1.0f ) return -1.0f;
+
+
     return t;
 }
 
@@ -112,8 +123,8 @@ int main(int argc, char** argv) {
     player.pos = (vec2){ 0.0f, 0.0f };
 
     vec2
-        L0 = { -100, -64 },
-        L1 = {  100, -64 };
+        L0 = { -100, 64 },
+        L1 = {  100, 64 };
 
     while (state.running) {
         // Process events
@@ -125,15 +136,25 @@ int main(int argc, char** argv) {
             }
         }
 
+        const u8* keystate = SDL_GetKeyboardState(NULL);
+        if ( keystate[SDL_SCANCODE_W] )
+            player.pos.y += 1;
+        else if ( keystate[SDL_SCANCODE_S] )
+            player.pos.y -= 1;
+        
+        if ( keystate[SDL_SCANCODE_D] )
+            player.pos.x += 1;
+        else if ( keystate[SDL_SCANCODE_A] )
+            player.pos.x -= 1;
+
         memset(state.pixels, 0, sizeof(state.pixels)); // Clear screen
 
         for ( int i = 0; i < SCREEN_WIDTH; i++ ) {
             float dis = cast_ray( L0, L1, i );
             if ( dis != -1.0f ) {
-                vline( i, SCREEN_HALF_HEIGHT - 0.001f*dis*dis, 0xFF0000FF );
+                vline( i, SCREEN_HALF_HEIGHT - dis, 0xFF0000FF );
             }
         }
-        player.pos.y += 1;
 
         SDL_UpdateTexture(state.texture, NULL, state.pixels, SCREEN_WIDTH * 4); // 4 = sizeof(u32)
         SDL_RenderCopyEx(
